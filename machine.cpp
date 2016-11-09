@@ -209,13 +209,16 @@ void Machine::Execute() {
 			int add = s1 + simm;
 			exeF = wb = true;
 			switch (funct3) {
-				case FLW:
+				case FLW: {
 					float f;
 					mem -> readMem(add, (char *)&f, FLOAT_SIZE);
 					resf = f;
 					break;
-				case FLD: // D set, can be ignored
-					cout << "D extension instruction FLD has been ignored!" << endl;
+				}
+				case FLD:
+					double d;
+					mem -> readMem(add, (char *)&d, DOUBLE_SIZE);
+					resf = float(d);
 					break;
 				default:
 					cerr << "Unknown funct3 in LOAD_FP : " << int(funct3) << endl;
@@ -370,14 +373,16 @@ void Machine::Execute() {
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			memadd = s1 + simm;
 			float d = reg -> getFloatReg(rs2);
+			double dd = double(d);
 			data = INT2LLU(*(int*)&d);
 			wb = true;
 			switch (funct3) {
 				case FSW:
 					memsize = FLOAT_SIZE;
 					break;
-				case FSD: // D extension, can be ignored
-					cout << "The RV64D instruction FSD has been ignored." << endl;
+				case FSD:
+					data = (*(long long unsigned *)&dd);
+					memsize = DOUBLE_SIZE;
 					break;
 			}
 			break;

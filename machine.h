@@ -21,6 +21,7 @@
 #define WORD_SIZE 4
 #define DOUBLE_WORD_SIZE 8
 #define FLOAT_SIZE 4
+#define DOUBLE_SIZE 8
 
 // syscall
 #define SYS_EXIT 93
