@@ -58,7 +58,7 @@ void Machine::Run() {
 
 		// instruction decode
 		instr -> Decode();
-		printf("0x%08x\n", instr -> getInstr());
+		// printf("0x%08x\n", instr -> getInstr());
 
 		// execute
 		Execute();
@@ -111,9 +111,9 @@ long long unsigned Machine::UNS2LLU(unsigned ori) {
 void Machine::Fetch() {
 	unsigned instrBuff;
 	unsigned pc = reg -> getPC();
-	printf("0x%08x ", pc);
-	printf("ra: 0x%08x sp: 0x%08x S4: 0x%08x ", unsigned(reg -> getIntReg(RA)), unsigned(reg -> getIntReg(SP)), unsigned(reg -> getIntReg(S4)));
+	// printf("ra: 0x%08x sp: 0x%08x S4: 0x%08x ", unsigned(reg -> getIntReg(RA)), unsigned(reg -> getIntReg(SP)), unsigned(reg -> getIntReg(S4)));
 	mem -> readMem(pc, (char*)&instrBuff, INSTR_SIZE);
+	printf("PC: 0x%08x Instr: 0x%08x\n", pc, instrBuff);
 	instr -> setInstruct(instrBuff);
 	reg -> setPC(pc + 4U);
 }
@@ -301,7 +301,7 @@ void Machine::Execute() {
 			int offset = int(((((imm << 5) | rs1) << 3) | funct3) << 12);
 			resi = INT2LLU(pc + offset);
 			// printf("%d\n", unsigned(resi));
-			printf("0x%08x 0x%08x\n", unsigned(resi), offset);
+			// printf("0x%08x 0x%08x\n", unsigned(resi), offset);
 			exeI = wb = true;
 			break;
 		}
@@ -853,8 +853,8 @@ void Machine::Execute() {
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			int simm = SExtension(imm);
 			unsigned pc = reg -> getPC() - 4U;
-			printf("%d %d %d\n", rs1, s1, simm);
-			printf("In JALR: 0x%08x %u\n", pc, unsigned(s1 + simm));
+			// printf("%d %d %d\n", rs1, s1, simm);
+			// printf("In JALR: 0x%08x %u\n", pc, unsigned(s1 + simm));
 			reg -> setPC((unsigned(s1 + simm)) & unsigned(-2));
 			resi = UNS2LLU(pc + 4U);
 			exeI = wb = true;
@@ -862,8 +862,8 @@ void Machine::Execute() {
 		}
 		case JAL: {
 			// jump and link
-			printf("HAHA\n");
-			printf("0x%08x 0x%08x\n", reg -> getPC(), instr -> getInstr());
+			// printf("HAHA\n");
+			// printf("0x%08x 0x%08x\n", reg -> getPC(), instr -> getInstr());
 			unsigned s1u = unsigned(rs1);
 			unsigned char funct3 = instr -> getFunct3();
 			int offset = SExtension(imm & 0x800) << 9U;
@@ -874,8 +874,8 @@ void Machine::Execute() {
 
 			unsigned pc = reg -> getPC() - 4U;
 			resi = UNS2LLU(pc + 4U);
-			printf("ra : 0x%08x, regNum: %d\n", unsigned(resi), int(rd));
-			printf("jump address: 0x%08x\n", offset);
+			// printf("ra : 0x%08x, regNum: %d\n", unsigned(resi), int(rd));
+			// printf("jump address: 0x%08x\n", offset);
 			reg -> setPC(unsigned(int(pc) + offset));
 			exeI = wb = true;
 			break;

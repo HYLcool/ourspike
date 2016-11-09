@@ -25,7 +25,7 @@ void Loadelf::Load_file(string filename)
 	file.read(*(char**)Mem, (int)ProH->getFs());
 	Mem->initial((int)SegH->getAddr(), (int)SegH->getSize());
 
-	Mem->MyPrint();
+	// Mem->MyPrint();
 	file.close();
 
 	delete SegH;
