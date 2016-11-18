@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <string>
+#include <unistd.h>
 
 #include "Instruction.h"
 #include "Register.h"
@@ -25,12 +26,17 @@
 
 // syscall
 #define SYS_EXIT 93
+#define SYS_READ 63
+#define SYS_WRITE 64
+#define SYS_GET_TIME_OF_DAY 169
+
+#define STACK_POINTER 0x30000
 
 using namespace std;
 
 class Machine {
 public:
-	Machine(bool);
+	Machine(bool, bool);
 	~Machine();
 
 	void Run();
@@ -63,10 +69,12 @@ private:
 	// instruction count
 	bool ic;
 	int count;
+	// debug
+	bool db;
 
 	// result of ALU
 	long long unsigned resi;
-	float resf;
+	double resf;
 	unsigned char rd;
 
 	int memsize;

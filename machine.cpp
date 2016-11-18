@@ -5,7 +5,7 @@
 
 using namespace std;
 
-Machine::Machine(bool instructionCount) {
+Machine::Machine(bool instructionCount, bool debug) {
 	instr = new Instruction();
 	reg = new Register();
 	stack = new Stack();
@@ -14,14 +14,15 @@ Machine::Machine(bool instructionCount) {
 	loader = new Loadelf(mem);
 
 	wb = wm = exeI = exeF = proFinished = false;
-	reg -> setIntReg(SP, MAX_SIZE + VIRMEM_OFFSET - 1);
-	reg -> setIntReg(FP, MAX_SIZE + VIRMEM_OFFSET - 1);
+	reg -> setIntReg(SP, VIRMEM_OFFSET + STACK_POINTER);
+	reg -> setIntReg(FP, VIRMEM_OFFSET + STACK_POINTER);
 
 	resi = 0;
 	resf = 0.0;
 	rd = 0;
 
 	ic = instructionCount;
+	db = debug;
 
 	if (ic)
 		count = 0;
@@ -50,6 +51,11 @@ void Machine::Run() {
 		// instruction count
 		if (ic)
 			count++;
+
+		// char * str = new char[15];
+		// mem -> readMem(0x13208, str, 13);
+		// printf("%s %d %d ", str, str[11], str[12]);
+		// delete str;
 
 		// printf("ha\n");
 
@@ -111,18 +117,32 @@ long long unsigned Machine::UNS2LLU(unsigned ori) {
 void Machine::Fetch() {
 	unsigned instrBuff;
 	unsigned pc = reg -> getPC();
-	// printf("ra: 0x%08x sp: 0x%08x S4: 0x%08x ", unsigned(reg -> getIntReg(RA)), unsigned(reg -> getIntReg(SP)), unsigned(reg -> getIntReg(S4)));
 	mem -> readMem(pc, (char*)&instrBuff, INSTR_SIZE);
-	printf("PC: 0x%08x Instr: 0x%08x\n", pc, instrBuff);
+	if (db) {
+		printf("PC: 0x%08x Instr: 0x%08x\n", pc, instrBuff);
+		printf("ZERO: 0x%08x RA: 0x%08x SP: 0x%08x GP: 0x%08x ", unsigned(reg -> getIntReg(ZERO)), unsigned(reg -> getIntReg(RA)), unsigned(reg -> getIntReg(SP)), unsigned(reg -> getIntReg(GP)));
+		printf("TP: 0x%08x T0: 0x%08x T1: 0x%08x T2: 0x%08x\n", unsigned(reg -> getIntReg(TP)), unsigned(reg -> getIntReg(T0)), unsigned(reg -> getIntReg(T1)), unsigned(reg -> getIntReg(T2)));
+		printf("S0/FP: 0x%08x S1: 0x%08x A0: 0x%08x A1: 0x%08x ", unsigned(reg -> getIntReg(S0)), unsigned(reg -> getIntReg(S1)), unsigned(reg -> getIntReg(A0)), unsigned(reg -> getIntReg(A1)));
+		printf("A2: 0x%08x A3: 0x%08x A4: 0x%08x A5: 0x%08x\n", unsigned(reg -> getIntReg(A2)), unsigned(reg -> getIntReg(A3)), unsigned(reg -> getIntReg(A4)), unsigned(reg -> getIntReg(A5)));
+		printf("A6: 0x%08x A7: 0x%08x S2: 0x%08x S3: 0x%08x ", unsigned(reg -> getIntReg(A6)), unsigned(reg -> getIntReg(A7)), unsigned(reg -> getIntReg(S2)), unsigned(reg -> getIntReg(S3)));
+		printf("S4: 0x%08x S5: 0x%08x S6: 0x%08x S7: 0x%08x\n", unsigned(reg -> getIntReg(S4)), unsigned(reg -> getIntReg(S5)), unsigned(reg -> getIntReg(S6)), unsigned(reg -> getIntReg(S7)));
+		printf("S8: 0x%08x S9: 0x%08x S10: 0x%08x S11: 0x%08x ", unsigned(reg -> getIntReg(S8)), unsigned(reg -> getIntReg(S9)), unsigned(reg -> getIntReg(S10)), unsigned(reg -> getIntReg(S11)));
+		printf("T3: 0x%08x T4: 0x%08x T5: 0x%08x T6: 0x%08x\n", unsigned(reg -> getIntReg(T3)), unsigned(reg -> getIntReg(T4)), unsigned(reg -> getIntReg(T5)), unsigned(reg -> getIntReg(T6)));
+		// double a = reg -> getDoubleReg(15);
+		// printf("FA5: %f 0x%lld\n", a, *(long long *)&a);
+		printf("\n");
+	}
 	instr -> setInstruct(instrBuff);
 	reg -> setPC(pc + 4U);
 }
 
 void Machine::WriteBack() {
-	if (exeI)
+	if (exeI) {
 		reg -> setIntReg(rd, resi);
-	else if (exeF)
-		reg -> setFloatReg(rd, resf);
+	} else if (exeF) {
+		reg -> setDoubleReg(rd, resf);
+		// printf("%d\n", rd);
+	}
 }
 
 void Machine::WriteMemory() {
@@ -210,15 +230,16 @@ void Machine::Execute() {
 			exeF = wb = true;
 			switch (funct3) {
 				case FLW: {
-					float f;
-					mem -> readMem(add, (char *)&f, FLOAT_SIZE);
+					double f;
+					mem -> readMem(add, (char *)&f, DOUBLE_SIZE);
 					resf = f;
+					// printf("FLW : %lf\n", resf);
 					break;
 				}
 				case FLD:
 					double d;
 					mem -> readMem(add, (char *)&d, DOUBLE_SIZE);
-					resf = float(d);
+					resf = d;
 					break;
 				default:
 					cerr << "Unknown funct3 in LOAD_FP : " << int(funct3) << endl;
@@ -270,27 +291,13 @@ void Machine::Execute() {
 				}
 				// need funct7
 				case SLLI:
-					if (funct7 == 0x00) {
-						unsigned char shamt = imm & 0x1F;
-						resi = UNS2LLU((s1u << shamt));
-					} else {
-						unsigned char shamt = imm & 0x3F;
-						resi = (s1l << shamt);
-					}
+					resi = (s1l << (imm & 0x3F));
 					break;
 				case OP_IMM_7_5:
-					if (funct7 == SRLI) { // 32b SRLI
-						unsigned char shamt = imm & 0x1F;
-						resi = UNS2LLU((s1u >> shamt));
-					} else if ((funct7 >> 1) == SRLI) { // 64b SRLI
-						unsigned char shamt = imm & 0x3F;
-						resi = (s1l >> shamt);
-					} else if (funct7 == SRAI_32) { // 32b SRAI
-						unsigned char shamt = imm & 0x1F;
-						resi = INT2LLU((s1 >> shamt));
+					if ((funct7 >> 1) == SRLI) { // 64b SRLI
+						resi = (s1l >> (imm & 0x3F));
 					} else if ((funct7 >> 1) == SRAI_64) { // 64b SRAI
-						unsigned char shamt = imm & 0x3F;
-						resi = (s1l >> shamt);
+						resi = (((long long)(s1l)) >> (imm & 0x3F));
 					}
 					break;
 				default:
@@ -303,8 +310,7 @@ void Machine::Execute() {
 			int pc = int(reg -> getPC()) - 4;
 			int offset = int(((((imm << 5) | rs1) << 3) | funct3) << 12);
 			resi = INT2LLU(pc + offset);
-			// printf("%d\n", unsigned(resi));
-			// printf("0x%08x 0x%08x\n", unsigned(resi), offset);
+			// printf("resi = 0x%08x offset = 0x%08x\n", unsigned(resi), offset);
 			exeI = wb = true;
 			break;
 		}
@@ -344,7 +350,7 @@ void Machine::Execute() {
 		}
 		case STORE: {
 			data = reg -> getIntReg(rs2);
-			int simm = SExtension((imm & 0xFE0) | rd);
+			int simm = SExtension(int((imm & 0xFE0) | rd));
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			memadd = s1 + simm;
 			// printf("%d %d %d\n", simm, s1, memadd);
@@ -372,18 +378,19 @@ void Machine::Execute() {
 			int simm = SExtension((imm & 0xFE0) | rd);
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			memadd = s1 + simm;
-			float d = reg -> getFloatReg(rs2);
-			double dd = double(d);
-			data = INT2LLU(*(int*)&d);
-			wb = true;
+			double dd = reg -> getDoubleReg(rs2);
+			float d = float(dd);
+			data = (*(long long unsigned*)&dd);
+			wm = true;
 			switch (funct3) {
 				case FSW:
-					memsize = FLOAT_SIZE;
-					break;
-				case FSD:
-					data = (*(long long unsigned *)&dd);
 					memsize = DOUBLE_SIZE;
 					break;
+				case FSD:
+					memsize = DOUBLE_SIZE;
+					break;
+				default:
+					cerr << "Unknown funct3 in STORE_FP : " << funct3 << endl;
 			}
 			break;
 		}
@@ -409,8 +416,11 @@ void Machine::Execute() {
 							break;
 						case MUL:
 							// store the low 32 bits
-							resi = INT2LLU(int((s1l * s2l) & 0xFFFFFFFF));
+							resi = INT2LLU(s1 * s2);
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_0 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case OP_7_1:
@@ -420,8 +430,11 @@ void Machine::Execute() {
 							break;
 						case MULH:
 							// store the high 32 bits
-							resi = INT2LLU(int(((s1l * s2l) >> 32) & 0xFFFFFFFF));
+							resi = INT2LLU(int((((long long)(s1) * (long long)(s2)) >> 32) & 0xFFFFFFFF));
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_1 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case OP_7_2:
@@ -436,6 +449,9 @@ void Machine::Execute() {
 							// store the high 32 bits
 							resi = UNS2LLU(unsigned(((s1l * s2l) >> 32) & 0xFFFFFFFF));
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_2 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case OP_7_3:
@@ -450,6 +466,9 @@ void Machine::Execute() {
 							// store the high 32 bits
 							resi = UNS2LLU(unsigned(((s1l * s2l) >> 32) & 0xFFFFFFFF));
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_3 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case OP_7_4:
@@ -460,19 +479,25 @@ void Machine::Execute() {
 						case DIV: // store the quotient
 							resi = INT2LLU(s1 / s2);
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_4 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case OP_7_5:
 					switch (funct7) {
 						case SRL:
-							resi = INT2LLU((s1 >> (s2 & 0x3F)));
+							resi = UNS2LLU((s1u >> (s2 & 0x3F)));
 							break;
 						case SRA:
-							resi = UNS2LLU((s1u >> (s2 & 0x3F)));
+							resi = INT2LLU((s1 >> (s2 & 0x3F)));
 							break;
 						case DIVU: // store the quotient
 							resi = UNS2LLU(s1u / s2u);
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_5 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case OP_7_6:
@@ -483,6 +508,9 @@ void Machine::Execute() {
 						case REM: // store the remainder
 							resi = INT2LLU(s1 % s2);
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_6 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case OP_7_7:
@@ -493,6 +521,9 @@ void Machine::Execute() {
 						case REMU: // store the remainder
 							resi = UNS2LLU(s1u % s2u);
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_7_7 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				default:
@@ -527,10 +558,13 @@ void Machine::Execute() {
 						case MULW: // only for RV64
 							resi = INT2LLU(s1 * s2);
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_32_7_0 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case SLLW:
-					resi = INT2LLU(s1 << (s2u & 0x1F));
+					resi = INT2LLU(s1 << (s2 & 0x1F));
 					break;
 				case DIVW: // only for RV64
 					resi = INT2LLU(s1 / s2);
@@ -538,14 +572,17 @@ void Machine::Execute() {
 				case OP_32_7_5:
 					switch (funct7) {
 						case SRLW:
-							resi = INT2LLU(int(s1u >> (s2u & 0x1F)));
+							resi = UNS2LLU(s1u >> (s2 & 0x1F));
 							break;
 						case SRAW:
-							resi = INT2LLU(int(s1u >> (s2u & 0x1F)));
+							resi = INT2LLU(s1 >> (s2 & 0x1F));
 							break;
 						case DIVUW: // only for RV64
 							resi = INT2LLU(int(s1u / s2u));
 							break;
+						default:
+							cerr << "Unknown funct7 in OP_32_7_5 : " << funct7 << endl;
+							exit(1);
 					}
 					break;
 				case REMW: // only for RV64
@@ -554,72 +591,100 @@ void Machine::Execute() {
 				case REMUW: // only for RV64
 					resi = INT2LLU(int(s1u % s2u));
 					break;
+				default:
+					cerr << "Unknown funct3 in OP_32 : " << funct3 << endl;
+					exit(1);
 			}
 			break;
 		}
 
 		case MADD: { // r1 * r2 + r3
-			float s1 = reg -> getFloatReg(rs1);
-			float s2 = reg -> getFloatReg(rs2);
-			float s3 = reg -> getFloatReg(rs3);
+			double s1d = reg -> getDoubleReg(rs1);
+			double s2d = reg -> getDoubleReg(rs2);
+			double s3d = reg -> getDoubleReg(rs3);
+			float s1 = float(s1d);
+			float s2 = float(s2d);
+			float s3 = float(s3d);
 			exeF = wb = true;
 			switch (funct2) {
 				case FMADD_S:
-					resf = s1 * s2 + s3;
+					resf = double(s1 * s2 + s3);
 					break;
 				case FMADD_D: // ignored
 					cout << "The RV64D instructions have been ignored." << endl;
 					break;
+				default:
+					cerr << "Unknown funct2 in MADD : " << funct2 << endl;
+					exit(1);
 			}
 			break;
 		}
 		case MSUB: { // r1 * r2 - r3
-			float s1 = reg -> getFloatReg(rs1);
-			float s2 = reg -> getFloatReg(rs2);
-			float s3 = reg -> getFloatReg(rs3);
+			double s1d = reg -> getDoubleReg(rs1);
+			double s2d = reg -> getDoubleReg(rs2);
+			double s3d = reg -> getDoubleReg(rs3);
+			float s1 = float(s1d);
+			float s2 = float(s2d);
+			float s3 = float(s3d);
 			exeF = wb = true;
 			switch (funct2) {
 				case FMSUB_S:
-					resf = s1 * s2 - s3;
+					resf = double(s1 * s2 - s3);
 					break;
 				case FMSUB_D: // ignored
 					cout << "The RV64D instructions have been ignored." << endl;
 					break;
+				default:
+					cerr << "Unknown funct2 in MSUB : " << funct2 << endl;
+					exit(1);
 			}
 			break;
 		}
 		case NMSUB: { // - (r1 * r2 - r3)
-			float s1 = reg -> getFloatReg(rs1);
-			float s2 = reg -> getFloatReg(rs2);
-			float s3 = reg -> getFloatReg(rs3);
+			double s1d = reg -> getDoubleReg(rs1);
+			double s2d = reg -> getDoubleReg(rs2);
+			double s3d = reg -> getDoubleReg(rs3);
+			float s1 = float(s1d);
+			float s2 = float(s2d);
+			float s3 = float(s3d);
 			exeF = wb = true;
 			switch (funct2) {
 				case FNMSUB_S:
-					resf = - (s1 * s2 - s3);
+					resf = double(- (s1 * s2 - s3));
 					break;
 				case FNMSUB_D: // ignored
 					cout << "The RV64D instructions have been ignored." << endl;
 					break;
+				default:
+					cerr << "Unknown funct2 in NMSUB : " << funct2 << endl;
+					exit(1);
 			}
 			break;
 		}
 		case NMADD: { // - (r1 * r2 + r3)
-			float s1 = reg -> getFloatReg(rs1);
-			float s2 = reg -> getFloatReg(rs2);
-			float s3 = reg -> getFloatReg(rs3);
+			double s1d = reg -> getDoubleReg(rs1);
+			double s2d = reg -> getDoubleReg(rs2);
+			double s3d = reg -> getDoubleReg(rs3);
+			float s1 = float(s1d);
+			float s2 = float(s2d);
+			float s3 = float(s3d);
 			exeF = wb = true;
 			switch (funct2) {
 				case FNMADD_S:
-					resf = - (s1 * s2 + s3);
+					resf = double(- (s1 * s2 + s3));
 					break;
 				case FNMADD_D: // ignored
 					cout << "The RV64D instructions have been ignored." << endl;
 					break;
+				default:
+					cerr << "Unknown funct2 in NMADD : " << funct2 << endl;
+					exit(1);
 			}
 			break;
 		}
 		case OP_FP: {
-			float s1f = reg -> getFloatReg(rs1);
+			double s1d = reg -> getDoubleReg(rs1);
+			float s1f = float(s1d);
 			long long unsigned s1lu = reg -> getIntReg(rs1);
 			long long s1l = (long long)(s1lu);
 			int s1i = LLU2INT(s1lu);
@@ -628,28 +693,28 @@ void Machine::Execute() {
 			wb = true;
 			switch (funct7) {
 				case FADD_S:
-					s2 = reg -> getFloatReg(rs2);
-					resf = s1f + s2;
+					s2 = float(reg -> getDoubleReg(rs2));
+					resf = double(s1f + s2);
 					exeF = true;
 					break;
 				case FSUB_S:
-					s2 = reg -> getFloatReg(rs2);
-					resf = s1f - s2;
+					s2 = float(reg -> getDoubleReg(rs2));
+					resf = double(s1f - s2);
 					exeF = true;
 					break;
 				case FMUL_S:
-					s2 = reg -> getFloatReg(rs2);
-					resf = s1f * s2;
+					s2 = float(reg -> getDoubleReg(rs2));
+					resf = double(s1f * s2);
 					exeF = true;
 					break;
 				case FDIV_S:
-					s2 = reg -> getFloatReg(rs2);
-					resf = s1f / s2;
+					s2 = float(reg -> getDoubleReg(rs2));
+					resf = double(s1f / s2);
 					exeF = true;
 					break;
 				// with funct3
 				case OP_FP_3_10: {
-					s2 = reg -> getFloatReg(rs2);
+					s2 = float(reg -> getDoubleReg(rs2));
 					float as1 = fabs(s1f);
 					exeF = true;
 					switch (funct3) {
@@ -671,11 +736,43 @@ void Machine::Execute() {
 							else
 								resf = as1;
 							break;
+						default:
+							cerr << "Unknown funct3 in OP_FP_3_10 : " << unsigned(funct3) << endl;
+							exit(1);
+					}
+					break;
+				}
+				case OP_FP_3_11: {
+					double s2 = reg -> getDoubleReg(rs2);
+					double as1 = fabs(s1d);
+					exeF = true;
+					switch (funct3) {
+						case FSGNJ_D:
+							if (s2 < 0)
+								resf = - as1;
+							else
+								resf = as1;
+							break;
+						case FSGNJN_D:
+							if (s2 < 0)
+								resf = as1;
+							else
+								resf = - as1;
+							break;
+						case FSGNJX_D:
+							if (s1d < 0 && s2 < 0 || s1d > 0 && s2 > 0)
+								resf = - as1;
+							else
+								resf = as1;
+							break;
+						default:
+							cerr << "Unknown funct3 in OP_FP_3_11 : " << unsigned(funct3) << endl;
+							exit(1);
 					}
 					break;
 				}
 				case OP_FP_3_14: {
-					s2 = reg -> getFloatReg(rs2);
+					s2 = float(reg -> getDoubleReg(rs2));
 					exeF = true;
 					switch (funct3) {
 						case FMIN_S:
@@ -684,12 +781,15 @@ void Machine::Execute() {
 						case FMAX_S:
 							resf = (s1f > s2) ? s1f : s2;
 							break;
+						default:
+							cerr << "Unknown funct3 in OP_FP_3_14 : " << funct3 << endl;
+							exit(1);
 					}
 					break;
 				}
 				case OP_FP_3_50:
 					exeI = true;
-					s2 = reg -> getFloatReg(rs2);
+					s2 = float(reg -> getDoubleReg(rs2));
 					switch (funct3) {
 						case FEQ_S:
 							resi = (s1f == s2) ? 1 : 0;
@@ -700,32 +800,61 @@ void Machine::Execute() {
 						case FLE_S:
 							resi = (s1f <= s2) ? 1 : 0;
 							break;
+						default:
+							cerr << "Unknown funct3 in OP_FP_3_50 : " << funct3 << endl;
+							exit(1);
 					}
 					break;
+				case OP_FP_3_51: {
+					exeI = true;
+					double s2 = reg -> getDoubleReg(rs2);
+					switch (funct3) {
+						case FEQ_D:
+							resi = (s1d == s2) ? 1 : 0;
+							break;
+						case FLT_D:
+							resi = (s1d < s2) ? 1 : 0;
+							break;
+						case FLE_S:
+							resi = (s1d <= s2) ? 1 : 0;
+							break;
+						default:
+							cerr << "Unknown funct3 in OP_FP_3_51 : " << funct3 << endl;
+							exit(1);
+					}
+					break;
+				}
 				// with rs2
 				case OP_FP_s2_2C:
 					exeF = true;
 					switch (rs2) {
 						case FSQRT_S:
-							resf = sqrt(s1f);
+							resf = sqrt(s1d);
 							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_2C : " << rs2 << endl;
+							exit(1);
 					}
 					break;
 				case OP_FP_s2_60:
-					exeF = true;
+					exeI = true;
 					switch (rs2) {
 						case FCVT_W_S:
-							resf = float(s1i);
+							resi = INT2LLU(int(s1f));
+							printf("FCVT_W_S : %lld\n", resi);
 							break;
 						case FCVT_WU_S:
-							resf = float(s1u);
+							resi = UNS2LLU(unsigned(s1f));
 							break;
 						case FCVT_L_S:
-							resf = float(s1l);
+							resi = (long long unsigned)((long long)(s1f));
 							break;
 						case FCVT_LU_S:
-							resf = float(s1lu);
+							resi = (long long unsigned)s1f;
 							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_60 : " << rs2 << endl;
+							exit(1);
 					}
 					break;
 				case OP_FP_s2_70:
@@ -771,25 +900,35 @@ void Machine::Execute() {
 									exeI = true;
 									break;
 								}
+								default:
+									cerr << "Unknown funct3 in OP_FP_70_3_00 : " << funct3 << endl;
+									exit(1);
 							}
 							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_70 : " << rs2 << endl;
+							exit(1);
 					}
 					break;
 				case OP_FP_s2_68:
-					exeI = true;
+					exeF = true;
 					switch (rs2) {
 						case FCVT_S_W:
-							resi = INT2LLU(int(s1f));
+							resf = double(s1i);
+							printf("FCVT_S_W : %lf\n", resf);
 							break;
 						case FCVT_S_WU:
-							resi = UNS2LLU(unsigned(s1f));
+							resf = double(s1u);
 							break;
 						case FCVT_S_L:
-							resi = (long long unsigned)((long long)(s1f));
+							resf = double(s1l);
 							break;
 						case FCVT_S_LU:
-							resi = (long long unsigned)(s1f);
+							resf = double(s1lu);
 							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_68 : " << rs2 << endl;
+							exit(1);
 					}
 					break;
 				case OP_FP_s2_78:
@@ -800,10 +939,59 @@ void Machine::Execute() {
 									resf = *(float*)(&s1i);
 									exeF = true;
 									break;
+								default:
+									cerr << "Unknown funct3 in OP_FP_78_3_00 : " << funct3 << endl;
+									exit(1);
 							}
 							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_78 : " << rs2 << endl;
+							exit(1);
 					}
 					break;
+				case OP_FP_s2_79:
+					switch (rs2) {
+						case OP_FP_79_3_00:
+							switch (funct3) {
+								case FMV_D_X:
+									resf = *(double*)(&s1lu);
+									exeF = true;
+									break;
+								default:
+									cerr << "Unknown funct3 in OP_FP_79_3_00 : " << funct3 << endl;
+									exit(1);
+							}
+							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_78 : " << rs2 << endl;
+							exit(1);
+					}
+					break;
+				case OP_FP_s2_21:
+					switch (rs2) {
+						case FCVT_D_S:
+							resf = s1f;
+							exeF = true;
+							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_21 : " << int(rs2) << endl;
+							exit(1);
+					}
+					break;
+				case OP_FP_s2_71:
+					switch (rs2) {
+						case FMV_X_D:
+							resi = *(int*)&s1f;
+							exeI = true;
+							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_71 : " << int(rs2) << endl;
+							exit(1);
+					}
+					break;
+				default:
+					cerr << "Unknown funct7 in OP_FP : " << int(funct7) << endl;
+					exit(1);
 			}
 			break;
 		}
@@ -815,12 +1003,13 @@ void Machine::Execute() {
 			long long unsigned s2l = reg -> getIntReg(rs2);
 			int s2 = LLU2INT(s2l);
 			unsigned s2u = LLU2UNS(s2l);
-			int offset = SExtension(imm & 0x800);
-			unsigned rimm = unsigned(rd);
+			int offset = (SExtension(imm & 0x800) << 1U);
+			unsigned rimm = unsigned(rd);// 
 			offset |= ((rimm & 0x1) << 11U);
 			offset |= (((imm >> 5U) & 0x3F) << 5U);
 			offset |= (rimm & 0x1E);
 			offset &= unsigned(-2);
+			// printf("0x%08x\n", offset);
 			unsigned pc = reg -> getPC() - 4U;
 			unsigned target = unsigned(offset + pc);
 			switch (funct3) {
@@ -893,6 +1082,26 @@ void Machine::Execute() {
 					switch (syscall) {
 						case SYS_EXIT:
 							proFinished = true;
+							break;
+						case SYS_WRITE: {
+							int c1=int(reg->getIntReg(A0));
+							
+							unsigned c2=(unsigned)(reg->getIntReg(A1));
+							
+							unsigned c3=unsigned(reg->getIntReg(A2));
+							char *newc2=new char[c3];
+							mem->readMem(c2, newc2, c3);
+							int temz = write(c1,(void*)newc2,c3);
+							reg->setIntReg(A0 ,(unsigned)temz);
+							// printf("new c2 is : %s", newc2);
+							delete newc2;
+							
+							printf("c1=%d c2=%d c3=%d temz=%d\n",c1,c2,(int)c3, temz);
+							break;
+						}
+						default:
+							cerr << "Unknown syscall : " << syscall << endl;
+							// exit(1);
 							break;
 					}
 					break;

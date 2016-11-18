@@ -22,8 +22,18 @@ void Loadelf::Load_file(string filename)
 
 	Mem->setsize((int)ProH->getMs());
 	file.seekg((int)ProH->getOs(), ios::beg);
-	file.read(*(char**)Mem, (int)ProH->getFs());
+	file.read((*(char**)Mem + 0x10000), (int)ProH->getFs());
 	Mem->initial((int)SegH->getAddr(), (int)SegH->getSize());
+
+	// file.seekg((int)0x4208, ios::beg);
+	// file.read((char *)tmp, 64);
+	// for(int i = 0; i < 64; i++)
+	// {
+	// 	if (tmp[i] >= 32 && tmp[i] <= 126)
+ //  			cout << tmp[i] << " ";
+ //        else
+ //          cout << (int)(unsigned char)tmp[i] << " ";
+	// }
 
 	// Mem->MyPrint();
 	file.close();

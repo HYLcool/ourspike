@@ -21,7 +21,7 @@ int main(int argc, char ** argv) {
 
 	for (int i = 1; i < argc - 1; i++) {
 		if (!strcmp(*(argv + i), "-d")) { // debugging mod
-			// TODO: after implement debug function
+			debug = true;
 		} else if (! strcmp(*(argv + i), "-u")) { // print the usage message
 			ShowUsage();
 			exit(0);
@@ -43,7 +43,7 @@ int main(int argc, char ** argv) {
 	}
 	exeFile.close();
 
-	InitializeSystem(instructionCount);
+	InitializeSystem(instructionCount, debug);
 
 	// Parse the elf file
 	machine -> setFileName(string(exeFilename));
@@ -66,8 +66,8 @@ void ShowUsage() {
 	printf("\t-ic\tprint the instruction count of the execution process\n");
 }
 
-void InitializeSystem(bool ic) {
-	machine = new Machine(ic);
+void InitializeSystem(bool ic, bool debug) {
+	machine = new Machine(ic, debug);
 }
 
 void Clean() {

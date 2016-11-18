@@ -34,21 +34,21 @@
 
 class Register{
 	long long unsigned IntRegister[32];
-	float DoubleRegister[32];
+	double DoubleRegister[32];
 	unsigned PC;
-	float fcsr;
+	double fcsr;
 public:
 	Register();
 	long long unsigned getIntReg(int num);
 	bool setIntReg(int num, long long unsigned value);
 
-	float getFloatReg(int num);
-	bool setFloatReg(int num,float value);
+	double getDoubleReg(int num);
+	bool setDoubleReg(int num,double value);
 
 	unsigned getPC();
 	bool setPC(unsigned pc);
 
-	float getFcsr();
-	bool setFcsr(float);
+	double getFcsr();
+	bool setFcsr(double);
 
 };

@@ -7,8 +7,8 @@ using namespace std;
 typedef long long int lli;
 typedef short int si;
 
-#define VIRMEM_OFFSET 65536
-#define MAX_SIZE 80000
+#define VIRMEM_OFFSET 0x10000
+#define MAX_SIZE 0x80000
 
 class ElfHead{
   public:
@@ -88,7 +88,7 @@ class SegmentHead{
 //A data instruction to simulate main memory.
 class Memory{
   public:
-  	Memory(){Mem = new char[MAX_SIZE];};
+  	Memory(){Mem = new char[MAX_SIZE + VIRMEM_OFFSET];};
   	~Memory(){ delete Mem; };
 
   	void initial(int beginAd, int size){};
@@ -96,24 +96,30 @@ class Memory{
   	{
   	  for(int i = 0; i < size; i++)
       {
-        *(p + i) = Mem[situation - VIRMEM_OFFSET + i];
+        *(p + i) = Mem[situation + i];
       }	
   	};
   	void writeMem(int situation, char* p, int size)
   	{
       for(int i = 0; i < size; i++)
       {
-        Mem[situation - VIRMEM_OFFSET + i] = *(p + i);
+        Mem[situation + i] = *(p + i);
       } 
   	}
   	void MyPrint()
   	{
-  		for(int i = 0; i < 8; i++)
+  		for(int i = 0; i < MAX_SIZE; i++)
   		{
-  			cout << (int)(unsigned char)Mem[i] << " ";
+        if (i % 4 == 0)
+          cout << endl;
+        if (Mem[i] >= 32 && Mem[i] <= 126)
+  			cout << Mem[i] << " ";
+        else
+          cout << (int)(unsigned char)Mem[i] << " ";
   		}
   	}
     void setsize(int s){Memsiz = s;};
+    char * getMemAdd() {return Mem;}
 
   private:
   	char *Mem;

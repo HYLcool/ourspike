@@ -25,14 +25,14 @@ bool Register::setIntReg(int num,long long unsigned value){
 	return 1;
 }
 
-float Register::getFloatReg(int num){
+double Register::getDoubleReg(int num){
 	if (num>=32||num<0){
 		return -1;
 	}
 	return DoubleRegister[num];
 
 }
-bool Register::setFloatReg(int num,float value){
+bool Register::setDoubleReg(int num,double value){
 	if (num>=32||num<0){
 		return 0;
 	}
@@ -49,11 +49,11 @@ bool Register::setPC(unsigned pc) {
 	return true;
 }
 
-float Register::getFcsr() {
+double Register::getFcsr() {
 	return fcsr;
 }
 
-bool Register::setFcsr(float v) {
+bool Register::setFcsr(double v) {
 	fcsr = v;
 	return true;
 }
@@ -67,8 +67,8 @@ bool Register::setFcsr(float v) {
 	cout<<a.getIntReg(1)<<endl;
 	cout<<sizeof(a.getIntReg(1))<<endl;
 
-	a.setFloatReg(1,11.11);
-	cout<<a.getFloatReg(1)<<endl;
+	a.setDoubleReg(1,11.11);
+	cout<<a.getDoubleReg(1)<<endl;
 	return 0;
 }*/
 

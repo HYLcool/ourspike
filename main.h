@@ -15,7 +15,7 @@ using namespace std;
 
 // some functions
 void ShowUsage(); // print the usage message
-void InitializeSystem(bool); // initialize the data structures
+void InitializeSystem(bool, bool); // initialize the data structures
 void Clean(); // clean after finishing the program
 
 // data structures

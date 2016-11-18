@@ -232,6 +232,8 @@
 #define OP_FP_s2_69 0x69 // with rs2
 #define OP_FP_s2_79 0x79 // with rs2
 
+#define OP_FP_s2_71 0x71 // with rs2
+
 
 
 
