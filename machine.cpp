@@ -1181,7 +1181,7 @@ void Machine::Execute() {
 							char *newc2=new char[c3];
 							mem->readMem(c2, newc2, c3);
 							int temz = write(c1,(void*)newc2,c3);
-							reg->setIntReg(A0 ,(unsigned)temz);
+							reg->setIntReg(A0 ,INT2LLU(temz));
 							// printf("new c2 is : %s", newc2);
 							delete newc2;
 							
@@ -1198,7 +1198,7 @@ void Machine::Execute() {
 							char *newc2=new char[c3];
 
 							int temz=read(c1,(void *)newc2,c3);
-							reg->setIntReg(A0 ,(unsigned)temz);
+							reg->setIntReg(A0 ,INT2LLU(temz));
 							mem->writeMem(c2,newc2,c3);
 							delete newc2;
 							break;
@@ -1216,7 +1216,7 @@ void Machine::Execute() {
 
         					mem->writeMem(c1,(char *)&tv,sizeof(tv));
         					mem->writeMem(c2,(char *)&tz,sizeof(tz));
-        					reg->setIntReg(A0 ,(unsigned)temz);
+        					reg->setIntReg(A0 ,INT2LLU(temz));
         					break;
 
 						}
@@ -1225,8 +1225,39 @@ void Machine::Execute() {
 							reg->setIntReg(A0 ,c1);
 							break;
 						}
+						case SYS_FSTAT:{
+							int c1=int(reg->getIntReg(A0));
+							
+							unsigned c2=(unsigned)(reg->getIntReg(A1));
+
+							struct stat newc2;
+							int temz=fstat(c1 ,&newc2);
+							mem->writeMem(c2,(char*)&newc2,sizeof(newc2));
+							reg->setIntReg(A0 ,INT2LLU(temz));
+							break;
+
+						}
+						case SYS_LSEEK: {
+							int c1=int(reg->getIntReg(A0));
+							int c2=(int)(reg->getIntReg(A1));
+							int c3=int(reg->getIntReg(A2));
+
+							int temz = lseek(c1, c2, c3);
+
+							reg -> setIntReg(A0, INT2LLU(temz));
+
+							break;
+						}
+						case SYS_CLOSE: {
+							int c1 = int(reg -> getIntReg(A0));
+
+							int temz = close(c1);
+
+							reg -> setIntReg(A0, INT2LLU(temz));
+							break;
+						}
 						default:
-							// cerr << "Unknown syscall : " << syscall << endl;
+							cerr << "Unknown syscall : " << syscall << endl;
 							// exit(1);
 							break;
 					}

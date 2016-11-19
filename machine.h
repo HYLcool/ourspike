@@ -9,6 +9,8 @@
 #include <string>
 #include <unistd.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "Instruction.h"
 #include "Register.h"
@@ -32,6 +34,8 @@
 #define SYS_GET_TIME_OF_DAY 169
 #define SYS_BRK 214
 #define SYS_FSTAT 80
+#define SYS_LSEEK 62
+#define SYS_CLOSE 57
 
 #define STACK_POINTER 0x30000
 
