@@ -31,6 +31,7 @@
 #define SYS_WRITE 64
 #define SYS_GET_TIME_OF_DAY 169
 #define SYS_BRK 214
+#define SYS_FSTAT 80
 
 #define STACK_POINTER 0x30000
 
