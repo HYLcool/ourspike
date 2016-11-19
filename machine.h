@@ -8,6 +8,7 @@
 #include <cmath>
 #include <string>
 #include <unistd.h>
+#include <sys/time.h>
 
 #include "Instruction.h"
 #include "Register.h"
@@ -29,6 +30,7 @@
 #define SYS_READ 63
 #define SYS_WRITE 64
 #define SYS_GET_TIME_OF_DAY 169
+#define SYS_BRK 214
 
 #define STACK_POINTER 0x30000
 

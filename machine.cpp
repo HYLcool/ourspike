@@ -230,9 +230,9 @@ void Machine::Execute() {
 			exeF = wb = true;
 			switch (funct3) {
 				case FLW: {
-					double f;
-					mem -> readMem(add, (char *)&f, DOUBLE_SIZE);
-					resf = f;
+					float f;
+					mem -> readMem(add, (char *)&f, FLOAT_SIZE);
+					resf = double(f);
 					// printf("FLW : %lf\n", resf);
 					break;
 				}
@@ -240,6 +240,7 @@ void Machine::Execute() {
 					double d;
 					mem -> readMem(add, (char *)&d, DOUBLE_SIZE);
 					resf = d;
+					// printf("PC: %08x FLW: %lf\n", reg -> getPC() - 4, resf);
 					break;
 				default:
 					cerr << "Unknown funct3 in LOAD_FP : " << int(funct3) << endl;
@@ -384,10 +385,12 @@ void Machine::Execute() {
 			wm = true;
 			switch (funct3) {
 				case FSW:
-					memsize = DOUBLE_SIZE;
+					data = (long long)(*(unsigned*)&d);
+					memsize = FLOAT_SIZE;
 					break;
 				case FSD:
 					memsize = DOUBLE_SIZE;
+					// printf("FSD: %lld\n", data);
 					break;
 				default:
 					cerr << "Unknown funct3 in STORE_FP : " << funct3 << endl;
@@ -697,21 +700,45 @@ void Machine::Execute() {
 					resf = double(s1f + s2);
 					exeF = true;
 					break;
+				case FADD_D: {
+					double s2d = reg -> getDoubleReg(rs2);
+					resf = s1d + s2d;
+					exeF = true;
+					break;
+				}
 				case FSUB_S:
 					s2 = float(reg -> getDoubleReg(rs2));
 					resf = double(s1f - s2);
 					exeF = true;
 					break;
+				case FSUB_D: {
+					double s2d = reg -> getDoubleReg(rs2);
+					resf = s1d - s2d;
+					exeF = true;
+					break;
+				}
 				case FMUL_S:
 					s2 = float(reg -> getDoubleReg(rs2));
 					resf = double(s1f * s2);
 					exeF = true;
 					break;
+				case FMUL_D: {
+					double s2d = reg -> getDoubleReg(rs2);
+					resf = s1d * s2d;
+					exeF = true;
+					break;
+				}
 				case FDIV_S:
 					s2 = float(reg -> getDoubleReg(rs2));
 					resf = double(s1f / s2);
 					exeF = true;
 					break;
+				case FDIV_D: {
+					double s2d = reg -> getDoubleReg(rs2);
+					resf = s1d / s2d;
+					exeF = true;
+					break;
+				}
 				// with funct3
 				case OP_FP_3_10: {
 					s2 = float(reg -> getDoubleReg(rs2));
@@ -931,6 +958,27 @@ void Machine::Execute() {
 							exit(1);
 					}
 					break;
+				case OP_FP_s2_69: {
+					exeF = true;
+					switch (rs2) {
+						case FCVT_D_W:
+							resf = double(s1i);
+							break;
+						case FCVT_D_WU:
+							resf = double(s1u);
+							break;
+						case FCVT_D_L:
+							resf = double(s1l);
+							break;
+						case FCVT_D_LU:
+							resf = double(s1lu);
+							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_69 : " << rs2 << endl;
+							exit(1);
+					}
+					break;
+				}
 				case OP_FP_s2_78:
 					switch (rs2) {
 						case OP_FP_78_3_00:
@@ -967,10 +1015,22 @@ void Machine::Execute() {
 							exit(1);
 					}
 					break;
+				case OP_FP_s2_20: {
+					switch (rs2) {
+						case FCVT_S_D:
+							resf = double(s1f);
+							exeF = true;
+							break;
+						default:
+							cerr << "Unknown rs2 in OP_FP_s2_20 : " << int(rs2) << endl;
+							exit(1);
+					}
+					break;
+				}
 				case OP_FP_s2_21:
 					switch (rs2) {
 						case FCVT_D_S:
-							resf = s1f;
+							resf = s1d;
 							exeF = true;
 							break;
 						default:
@@ -981,7 +1041,8 @@ void Machine::Execute() {
 				case OP_FP_s2_71:
 					switch (rs2) {
 						case FMV_X_D:
-							resi = *(int*)&s1f;
+							resi = *(long long unsigned*)&s1d;
+							printf("%lld\n", resi);
 							exeI = true;
 							break;
 						default:
@@ -1096,11 +1157,48 @@ void Machine::Execute() {
 							// printf("new c2 is : %s", newc2);
 							delete newc2;
 							
-							printf("c1=%d c2=%d c3=%d temz=%d\n",c1,c2,(int)c3, temz);
+							// printf("c1=%d c2=%d c3=%d temz=%d\n",c1,c2,(int)c3, temz);
+							break;
+						}
+						case SYS_READ:{
+							int c1=int(reg->getIntReg(A0));
+							
+							unsigned c2=(unsigned)(reg->getIntReg(A1));
+							
+							unsigned c3=unsigned(reg->getIntReg(A2));
+
+							char *newc2=new char[c3];
+
+							int temz=read(c1,(void *)newc2,c3);
+							reg->setIntReg(A0 ,(unsigned)temz);
+							mem->writeMem(c2,newc2,c3);
+							delete newc2;
+							break;
+
+						}
+						case SYS_GET_TIME_OF_DAY:{
+							unsigned c1=(unsigned)(reg->getIntReg(A0));
+							unsigned c2=(unsigned)(reg->getIntReg(A1));
+
+							struct  timeval    tv;
+
+        					struct  timezone   tz;
+
+        					int temz=gettimeofday(&tv,&tz);
+
+        					mem->writeMem(c1,(char *)&tv,sizeof(tv));
+        					mem->writeMem(c2,(char *)&tz,sizeof(tz));
+        					reg->setIntReg(A0 ,(unsigned)temz);
+        					break;
+
+						}
+						case SYS_BRK:{
+							long long unsigned c1=(long long unsigned)(reg->getIntReg(A0));
+							reg->setIntReg(A0 ,c1);
 							break;
 						}
 						default:
-							cerr << "Unknown syscall : " << syscall << endl;
+							// cerr << "Unknown syscall : " << syscall << endl;
 							// exit(1);
 							break;
 					}

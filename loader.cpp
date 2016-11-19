@@ -35,7 +35,7 @@ void Loadelf::Load_file(string filename)
  //          cout << (int)(unsigned char)tmp[i] << " ";
 	// }
 
-	// Mem->MyPrint();
+	Mem->MyPrint();
 	file.close();
 
 	delete SegH;
