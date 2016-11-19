@@ -311,7 +311,7 @@ void Machine::Execute() {
 		case AUIPC: {
 			int pc = int(reg -> getPC()) - 4;
 			int offset = int(((((imm << 5) | rs1) << 3) | funct3) << 12);
-			resi = UNS2LLU(unsigned(pc + offset));
+			resi = UNS2LLU(pc + offset);
 			// printf("resi = 0x%08x offset = 0x%08x\n", unsigned(resi), offset);
 			exeI = wb = true;
 			break;
@@ -1086,12 +1086,14 @@ void Machine::Execute() {
 		}
 
 		case BRANCH: {
-			long long unsigned s1l = reg -> getIntReg(rs1);
-			int s1 = LLU2INT(s1l);
-			unsigned s1u = LLU2UNS(s1l);
-			long long unsigned s2l = reg -> getIntReg(rs2);
-			int s2 = LLU2INT(s2l);
-			unsigned s2u = LLU2UNS(s2l);
+			long long unsigned s1lu = reg -> getIntReg(rs1);
+			long long s1l = (long long)s1lu;
+			int s1 = LLU2INT(s1lu);
+			unsigned s1u = LLU2UNS(s1lu);
+			long long unsigned s2lu = reg -> getIntReg(rs2);
+			long long s2l = (long long)s2lu;
+			int s2 = LLU2INT(s2lu);
+			unsigned s2u = LLU2UNS(s2lu);
 			int offset = (SExtension(imm & 0x800) << 1U);
 			unsigned rimm = unsigned(rd);// 
 			offset |= ((rimm & 0x1) << 11U);
@@ -1103,27 +1105,27 @@ void Machine::Execute() {
 			unsigned target = unsigned(offset + pc);
 			switch (funct3) {
 				case BEQ:
-					if (s1 == s2)
+					if (s1l == s2l)
 						reg -> setPC(target);
 					break;
 				case BNE:
-					if (s1 != s2)
+					if (s1l != s2l)
 						reg -> setPC(target);
 					break;
 				case BLT:
-					if (s1 < s2)
+					if (s1l < s2l)
 						reg -> setPC(target);
 					break;
 				case BGE:
-					if (s1 >= s2)
+					if (s1l >= s2l)
 						reg -> setPC(target);
 					break;
 				case BLTU:
-					if (s1u < s2u)
+					if (s1lu < s2lu)
 						reg -> setPC(target);
 					break;
 				case BGEU:
-					if (s1u >= s2u)
+					if (s1lu >= s2lu)
 						reg -> setPC(target);
 					break;
 				default:
