@@ -17,8 +17,9 @@ $ ./ourspike a.out
 
 options:
 	-u	print this usage message.
-	-d	debugging mode
+	-d	debugging mode. In this mode, you can give a '?' to get the debug help message
 	-ic	print the total instruction amount after finishing running a program
+	-trace	print the executing trace of a program, cover the -d option
 ```
 - Finally, you get what you want~
 

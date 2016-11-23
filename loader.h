@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <cstdlib>
 
 using namespace std;
 
@@ -8,7 +9,7 @@ typedef long long int lli;
 typedef short int si;
 
 #define VIRMEM_OFFSET 0x10000
-#define MAX_SIZE 0x80000
+#define MAX_SIZE 0xF0000
 
 class ElfHead{
   public:
@@ -101,6 +102,10 @@ class Memory{
   	};
   	void writeMem(int situation, char* p, int size)
   	{
+      if (situation + size >= MAX_SIZE + VIRMEM_OFFSET) {
+        printf("Memery Overflow! 0x%08x\n", situation + size);
+        exit(1);
+      }
       for(int i = 0; i < size; i++)
       {
         Mem[situation + i] = *(p + i);

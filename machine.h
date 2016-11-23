@@ -37,13 +37,13 @@
 #define SYS_LSEEK 62
 #define SYS_CLOSE 57
 
-#define STACK_POINTER 0x30000
+#define STACK_POINTER 0xE0000
 
 using namespace std;
 
 class Machine {
 public:
-	Machine(bool, bool);
+	Machine(bool, bool, bool);
 	~Machine();
 
 	void Run();
@@ -75,9 +75,15 @@ private:
 	// some extra functions
 	// instruction count
 	bool ic;
+	int ldC;
+	int stC;
+	int opC;
+	int brC;
+	int sysC;
 	int count;
 	// debug
 	bool db;
+	bool trace;
 
 	// result of ALU
 	long long unsigned resi;
@@ -87,6 +93,9 @@ private:
 	int memsize;
 	int memadd;
 	long long unsigned data;
+
+	unsigned stopPC;
+	bool inJump;
 
 	int SExtension(int);
 	unsigned UExtension(int);

@@ -5,7 +5,7 @@
 
 using namespace std;
 
-Machine::Machine(bool instructionCount, bool debug) {
+Machine::Machine(bool instructionCount, bool debug, bool tr) {
 	instr = new Instruction();
 	reg = new Register();
 	stack = new Stack();
@@ -23,9 +23,21 @@ Machine::Machine(bool instructionCount, bool debug) {
 
 	ic = instructionCount;
 	db = debug;
+	trace = tr;
+	if (trace)
+		db = false;
 
-	if (ic)
+	stopPC = 0;
+	inJump = false;
+
+	if (ic) {
 		count = 0;
+		ldC = 0;
+		stC = 0;
+		opC = 0;
+		brC = 0;
+		sysC = 0;
+	}
 }
 
 Machine::~Machine() {
@@ -52,13 +64,6 @@ void Machine::Run() {
 		if (ic)
 			count++;
 
-		// char * str = new char[15];
-		// mem -> readMem(0x13208, str, 13);
-		// printf("%s %d %d ", str, str[11], str[12]);
-		// delete str;
-
-		// printf("ha\n");
-
 		// instruction fetch
 		Fetch();
 
@@ -84,8 +89,14 @@ void Machine::Run() {
 void Machine::PrintMessage() {
 	printf("\n********************\n");
 
-	if (ic)
-		printf("Instruction Count : %d\n", count);
+	if (ic) {
+		printf("Total Instruction Count : %12d %3.2f%%\n", count, 100.0);
+		printf("Load ins. Count:          %12d %3.2f%%\n", ldC, (float)ldC / count * 100.0);
+		printf("Store ins. Count:         %12d %3.2f%%\n", stC, (float)stC / count * 100.0);
+		printf("Arithmetical ins. Count:  %12d %3.2f%%\n", opC, (float)opC / count * 100.0);
+		printf("Branch ins. Count:        %12d %3.2f%%\n", brC, (float)brC / count * 100.0);
+		printf("System call Count:        %12d %3.2f%%\n", sysC, (float)sysC / count * 100.0);
+	}
 
 	printf("********************\n");
 }
@@ -118,20 +129,89 @@ void Machine::Fetch() {
 	unsigned instrBuff;
 	unsigned pc = reg -> getPC();
 	mem -> readMem(pc, (char*)&instrBuff, INSTR_SIZE);
-	if (db) {
+	if (trace)
 		printf("PC: 0x%08x Instr: 0x%08x\n", pc, instrBuff);
-		printf("ZERO: 0x%08x RA: 0x%08x SP: 0x%08x GP: 0x%08x ", unsigned(reg -> getIntReg(ZERO)), unsigned(reg -> getIntReg(RA)), unsigned(reg -> getIntReg(SP)), unsigned(reg -> getIntReg(GP)));
-		printf("TP: 0x%08x T0: 0x%08x T1: 0x%08x T2: 0x%08x\n", unsigned(reg -> getIntReg(TP)), unsigned(reg -> getIntReg(T0)), unsigned(reg -> getIntReg(T1)), unsigned(reg -> getIntReg(T2)));
-		printf("S0/FP: 0x%08x S1: 0x%08x A0: 0x%08x A1: 0x%08x ", unsigned(reg -> getIntReg(S0)), unsigned(reg -> getIntReg(S1)), unsigned(reg -> getIntReg(A0)), unsigned(reg -> getIntReg(A1)));
-		printf("A2: 0x%08x A3: 0x%08x A4: 0x%08x A5: 0x%08x\n", unsigned(reg -> getIntReg(A2)), unsigned(reg -> getIntReg(A3)), unsigned(reg -> getIntReg(A4)), unsigned(reg -> getIntReg(A5)));
-		printf("A6: 0x%08x A7: 0x%08x S2: 0x%08x S3: 0x%08x ", unsigned(reg -> getIntReg(A6)), unsigned(reg -> getIntReg(A7)), unsigned(reg -> getIntReg(S2)), unsigned(reg -> getIntReg(S3)));
-		printf("S4: 0x%08x S5: 0x%08x S6: 0x%08x S7: 0x%08x\n", unsigned(reg -> getIntReg(S4)), unsigned(reg -> getIntReg(S5)), unsigned(reg -> getIntReg(S6)), unsigned(reg -> getIntReg(S7)));
-		printf("S8: 0x%08x S9: 0x%08x S10: 0x%08x S11: 0x%08x ", unsigned(reg -> getIntReg(S8)), unsigned(reg -> getIntReg(S9)), unsigned(reg -> getIntReg(S10)), unsigned(reg -> getIntReg(S11)));
-		printf("T3: 0x%08x T4: 0x%08x T5: 0x%08x T6: 0x%08x\n", unsigned(reg -> getIntReg(T3)), unsigned(reg -> getIntReg(T4)), unsigned(reg -> getIntReg(T5)), unsigned(reg -> getIntReg(T6)));
-		// double a = reg -> getDoubleReg(15);
-		// printf("FA5: %f 0x%lld\n", a, *(long long *)&a);
-		printf("\n");
+
+	if (db && (!inJump || stopPC == pc)) {
+		if (inJump)
+			inJump = false;
+		bool isCir = true;
+		
+		char *buf = new char[80];
+		int num;
+		printf("\nPC: 0x%08x Instr: 0x%08x\n", pc, instrBuff);
+		while (isCir) {
+			printf("> ");
+			// fflush(stdout);
+			scanf("%s", buf);
+			switch (*buf) {
+				case 's': // single-step
+					isCir = false;
+					break;
+				case 'l': // run until the end
+					db = false;
+					isCir = false;
+					break;
+				case 'j': // jump to an instruction
+					scanf("%x", &num);
+					inJump = true;
+					stopPC = num;
+					isCir = false;
+					break;
+				case 'i': // integer registers
+					scanf("%d", &num);
+					printf("Integer register %d is 0x%016llx\n", num, reg -> getIntReg(num));
+					break;
+				case 'f': {// floating registers
+					scanf("%d", &num);
+					double x = reg -> getDoubleReg(num);
+					printf("Floating register %d is 0x%016llx\n", num, *(long long unsigned*)&x);
+					break;
+				}
+				case 'm': { // memory
+					scanf("%x", &num);
+					int add = num / 4;
+					add *= 4; // align
+					char * content = new char[5];
+					mem -> readMem(add, content, 4);
+					content[4] = '\0';
+					for (int i = 0; i < 4; i++) {
+						printf("0x%08x: %u ", add + i, unsigned((unsigned char)content[i]));
+					}
+					printf("\n");
+					delete content;
+					break;
+				}
+				case '?':
+				default:
+					printf("Debug commands:\n");
+					printf("\ts\texecute one instruction\n");
+					printf("\tl\texecute until the program ends\n");
+					printf("\tj <address>\texecute until reaching the instruction <address>\n");
+					printf("\ti <number>\tprint the content of integer register <number>\n");
+					printf("\tf <number>\tprint the content of float register <number>\n");
+					printf("\tm <address>\tprint the content of memory at <address>\n");
+					printf("\t?\tprint this help message\n");
+					break;
+			}
+		}
+		delete buf;
+
+
+		// printf("PC: 0x%08x Instr: 0x%08x\n", pc, instrBuff);
+		// printf("ZERO: 0x%08x RA: 0x%08x SP: 0x%08x GP: 0x%08x ", unsigned(reg -> getIntReg(ZERO)), unsigned(reg -> getIntReg(RA)), unsigned(reg -> getIntReg(SP)), unsigned(reg -> getIntReg(GP)));
+		// printf("TP: 0x%08x T0: 0x%08x T1: 0x%08x T2: 0x%08x\n", unsigned(reg -> getIntReg(TP)), unsigned(reg -> getIntReg(T0)), unsigned(reg -> getIntReg(T1)), unsigned(reg -> getIntReg(T2)));
+		// printf("S0/FP: 0x%08x S1: 0x%08x A0: 0x%08x A1: 0x%08x ", unsigned(reg -> getIntReg(S0)), unsigned(reg -> getIntReg(S1)), unsigned(reg -> getIntReg(A0)), unsigned(reg -> getIntReg(A1)));
+		// printf("A2: 0x%08x A3: 0x%08x A4: 0x%08x A5: 0x%08x\n", unsigned(reg -> getIntReg(A2)), unsigned(reg -> getIntReg(A3)), unsigned(reg -> getIntReg(A4)), unsigned(reg -> getIntReg(A5)));
+		// printf("A6: 0x%08x A7: 0x%08x S2: 0x%08x S3: 0x%08x\n", unsigned(reg -> getIntReg(A6)), unsigned(reg -> getIntReg(A7)), unsigned(reg -> getIntReg(S2)), unsigned(reg -> getIntReg(S3)));
+		// printf("S4: 0x%08x S5: 0x%08x S6: 0x%08x S7: 0x%08x\n", unsigned(reg -> getIntReg(S4)), unsigned(reg -> getIntReg(S5)), unsigned(reg -> getIntReg(S6)), unsigned(reg -> getIntReg(S7)));
+		// printf("S8: 0x%08x S9: 0x%08x S10: 0x%08x S11: 0x%08x ", unsigned(reg -> getIntReg(S8)), unsigned(reg -> getIntReg(S9)), unsigned(reg -> getIntReg(S10)), unsigned(reg -> getIntReg(S11)));
+		// printf("T3: 0x%08x T4: 0x%08x T5: 0x%08x T6: 0x%08x\n", unsigned(reg -> getIntReg(T3)), unsigned(reg -> getIntReg(T4)), unsigned(reg -> getIntReg(T5)), unsigned(reg -> getIntReg(T6)));
+		// // double a = reg -> getDoubleReg(15);
+		// // printf("FA5: %f 0x%lld\n", a, *(long long *)&a);
+		// printf("\n");
 	}
+
 	instr -> setInstruct(instrBuff);
 	reg -> setPC(pc + 4U);
 }
@@ -168,6 +248,7 @@ void Machine::Execute() {
 
 	switch (opcode) {
 		case LOAD: {
+			ldC ++;
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			int simm = SExtension(int(imm));
 			int add = s1 + simm;
@@ -224,6 +305,7 @@ void Machine::Execute() {
 			break;
 		}
 		case LOAD_FP: {
+			ldC ++;
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			int simm = SExtension(int(imm));
 			int add = s1 + simm;
@@ -252,6 +334,7 @@ void Machine::Execute() {
 			cout << "The MISC_MEM type instruction has been ignored!" << endl;
 			break;
 		case OP_IMM: {
+			opC ++;
 			long long unsigned s1lu = reg -> getIntReg(rs1);
 			long long s1l = (long long)s1lu;
 			int s1 = LLU2INT(s1lu);
@@ -309,6 +392,7 @@ void Machine::Execute() {
 			break;
 		}
 		case AUIPC: {
+			opC ++;
 			int pc = int(reg -> getPC()) - 4;
 			int offset = int(((((imm << 5) | rs1) << 3) | funct3) << 12);
 			resi = UNS2LLU(pc + offset);
@@ -317,6 +401,7 @@ void Machine::Execute() {
 			break;
 		}
 		case OP_IMM_32: {
+			opC ++;
 			long long unsigned s1l = reg -> getIntReg(rs1);
 			int s1 = LLU2INT(s1l);
 			unsigned s1u = LLU2UNS(s1l);
@@ -351,6 +436,7 @@ void Machine::Execute() {
 			break;
 		}
 		case STORE: {
+			stC ++;
 			data = reg -> getIntReg(rs2);
 			int simm = SExtension(int((imm & 0xFE0) | rd));
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
@@ -377,6 +463,7 @@ void Machine::Execute() {
 			break;
 		}
 		case STORE_FP: {
+			stC ++;
 			int simm = SExtension((imm & 0xFE0) | rd);
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			memadd = s1 + simm;
@@ -402,6 +489,7 @@ void Machine::Execute() {
 			cout << "AMO has been ignored." << endl;
 			break;
 		case OP: {
+			opC ++;
 			long long unsigned s1lu = reg -> getIntReg(rs1);
 			long long s1l = (long long)s1lu;
 			int s1 = LLU2INT(s1lu);
@@ -539,12 +627,14 @@ void Machine::Execute() {
 			break;
 		}
 		case LUI: {
+			opC ++;
 			resi = INT2LLU(int(((((imm << 5) | rs1) << 3) | funct3) << 12));
 			// printf("In LUI, resi : 0x%08x\n", unsigned(resi));
 			exeI = wb = true;
 			break;
 		}
 		case OP_32: {
+			opC ++;
 			long long unsigned s1l = reg -> getIntReg(rs1);
 			int s1 = LLU2INT(s1l);
 			unsigned s1u = LLU2UNS(s1l);
@@ -605,6 +695,7 @@ void Machine::Execute() {
 		}
 
 		case MADD: { // r1 * r2 + r3
+			opC ++;
 			double s1d = reg -> getDoubleReg(rs1);
 			double s2d = reg -> getDoubleReg(rs2);
 			double s3d = reg -> getDoubleReg(rs3);
@@ -626,6 +717,7 @@ void Machine::Execute() {
 			break;
 		}
 		case MSUB: { // r1 * r2 - r3
+			opC ++;
 			double s1d = reg -> getDoubleReg(rs1);
 			double s2d = reg -> getDoubleReg(rs2);
 			double s3d = reg -> getDoubleReg(rs3);
@@ -647,6 +739,7 @@ void Machine::Execute() {
 			break;
 		}
 		case NMSUB: { // - (r1 * r2 - r3)
+			opC ++;
 			double s1d = reg -> getDoubleReg(rs1);
 			double s2d = reg -> getDoubleReg(rs2);
 			double s3d = reg -> getDoubleReg(rs3);
@@ -668,6 +761,7 @@ void Machine::Execute() {
 			break;
 		}
 		case NMADD: { // - (r1 * r2 + r3)
+			opC ++;
 			double s1d = reg -> getDoubleReg(rs1);
 			double s2d = reg -> getDoubleReg(rs2);
 			double s3d = reg -> getDoubleReg(rs3);
@@ -689,6 +783,7 @@ void Machine::Execute() {
 			break;
 		}
 		case OP_FP: {
+			opC ++;
 			double s1d = reg -> getDoubleReg(rs1);
 			float s1f = float(s1d);
 			long long unsigned s1lu = reg -> getIntReg(rs1);
@@ -1086,6 +1181,7 @@ void Machine::Execute() {
 		}
 
 		case BRANCH: {
+			brC ++;
 			long long unsigned s1lu = reg -> getIntReg(rs1);
 			long long s1l = (long long)s1lu;
 			int s1 = LLU2INT(s1lu);
@@ -1135,6 +1231,7 @@ void Machine::Execute() {
 			break;
 		}
 		case JALR: {
+			brC ++;
 			int s1 = LLU2INT(reg -> getIntReg(rs1));
 			int simm = SExtension(imm);
 			unsigned pc = reg -> getPC() - 4U;
@@ -1146,6 +1243,7 @@ void Machine::Execute() {
 			break;
 		}
 		case JAL: {
+			brC ++;
 			// jump and link
 			// printf("HAHA\n");
 			// printf("0x%08x 0x%08x\n", reg -> getPC(), instr -> getInstr());
@@ -1166,6 +1264,7 @@ void Machine::Execute() {
 			break;
 		}
 		case SYSTEM: {
+			sysC ++;
 			unsigned token = (funct7 << 5) | rs2;
 			switch (token) {
 				case SCALL: {
@@ -1251,11 +1350,11 @@ void Machine::Execute() {
 							break;
 						}
 						case SYS_CLOSE: {
-							int c1 = int(reg -> getIntReg(A0));
+							// int c1 = int(reg -> getIntReg(A0));
 
-							int temz = close(c1);
+							// int temz = close(c1);
 
-							reg -> setIntReg(A0, INT2LLU(temz));
+							// reg -> setIntReg(A0, INT2LLU(temz));
 							break;
 						}
 						default:
